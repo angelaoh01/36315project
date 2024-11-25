@@ -1,0 +1,190 @@
+---
+title: "Final Project Template"
+author: "Chang Liu, Yuqing Li, Gaeun Oh, Samuel Shin"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+# By default, do not include R source code in the PDF. We do not want to see
+# code, only your text and figures.
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r, message=FALSE, warning=FALSE}
+library (readr)
+library(tidyverse)
+library(forcats)
+library(sp)
+library(ggmap)
+police <- read_csv(url("https://github.com/fivethirtyeight/data/raw/master/police-killings/police_killings.csv"))
+```
+
+```{r, message=FALSE, warning=FALSE}
+police = police %>% 
+  mutate(age = as.numeric(age), 
+         gender = factor(gender),
+         raceethnicity = factor(raceethnicity),
+         month = fct_relevel(factor(month), c("January", "February", "March", "April", "May", "June")),
+         cause = factor(cause),
+         armed = factor(armed),
+         share_white = as.numeric(share_white), 
+         share_black = as.numeric(share_black), 
+         share_hispanic = as.numeric(share_hispanic), 
+         p_income = as.numeric(p_income), 
+         county_bucket = factor(county_bucket), 
+         nat_bucket = factor(nat_bucket),
+         pov = as.numeric(pov))
+```
+
+
+
+# Data Description
+
+Our data is based on American killings that occurred from police in the early part of the year 2015. The data gives us personal information about the deceased person (i.e. age, race, name, ethnicity, armed/not armed, etc.), but it also gives general information based on the census that can tell us about the environment around them when the death occurred (i.e. poverty rate, unemployment rate, income, area's college percentage). The context behind this data was that data on police killings began to become very biased or flawed in order to fit a certain narrative, so a source (The Guardian) wanted to present a more raw data set on police killings that was more informative and representative than simply race, age, or whether they were armed. Some of the variables we used were the latitude and longitude points of the death, age/ethnicity, economic attributes, education levels, cause of death, armed weaponry used if used at all.
+
+# Research Questions
+
+- Among police killing incidents, gunshot has been the absolute most frequent cause of death, being responsible for around 90% of the deaths. There are many controversies and concerns over gun violence by police in the U.S. We will utilize our dataset to explore the following aspect of the complicated situation: In a police killing incident, is the decision of utilizing gunshot affected by the race and ethnicity background of the victim? or by whether the victim is armed or not?
+- The victims of these police killing incidents come from various communities throughout the U.S. In this question, we are interested in the economic status of these communities, and we ask: What is the geographic distribution of the economic status of these communities? Are there any noticeable patterns?
+- The victims also come from various educational background. In the last question, we ask: do the white victims and minority grouped victims come from communities whose educational levels are significantly different?
+
+# Graphics and Analysis
+
+## QUESTION 1: Is the decision of gunshot affected by the race and ethnicity background of the victim? or by whether the victim is armed or not?
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE}
+race = data.frame(raceethnicity = c(length = nrow(police)), cause = c(length = nrow(police)))
+armed = data.frame(armed = c(length = nrow(police)), cause = c(length = nrow(police)))
+for (i in 1:nrow(police)) {
+    if (police[i, "armed"] != "No") {
+        armed[i, "armed"] = "Unarmed"
+      } else {
+        armed[i, "armed"] = "Armed"
+      }
+    if (police[i, "raceethnicity"] != "White") {
+      race[i, "raceethnicity"] = "Minority"
+    } else {
+      race[i, "raceethnicity"] = "White"
+    }
+    
+    if (police[i, "cause"] != "Gunshot") {
+      race[i, "cause"] = "not-Gunshot"
+      armed[i, "cause"] = "not-Gunshot"
+    } else {
+      race[i, "cause"] = "Gunshot"
+      armed[i, "cause"] = "Gunshot"
+    }
+}
+mosaicplot(table(race), shade = TRUE, main = "Race and Ethnicity vs Gunshot",
+           xlab = "Race and Ethnicity of Victim", ylab = "Cause of Death")
+```
+
+We re-categorize the races of the deceased into white and minority groups and the cause of their death into gunshot and not-gunshot. As we treat gunshot as a more violent and fatal treatment, we want to explore whether the raceethnicity of the victim influence their likelihood of experiencing gunshot. From the mosaicplot of pearson residuals, we found that there is no significant difference in the likelihood of experiencing gunshot no matter the deceased were in the minority group or not, which is a good thing as we didn't see any obvious discrimination among different ethnicity groups.
+
+```{r, warning=FALSE, message=FALSE, echo = FALSE}
+mosaicplot(table(armed), shade = TRUE, main = "Armed Condition vs Gunshot",
+           xlab = "Armed Condition", ylab = "Cause of Death")
+```
+
+We are also interested in whether the deceased were armed or not can influence the likelihood of experiencing gunshot. Normally speaking, we would expect unarmed groups are less likely to be shot directly. However, from the mosaicplot, we found that no matter the deceased were armed or not, there is no significant difference in the likelihood of experiencing gunshot. This could be problematic since shooting an unarmed person is more likely to be manslaughter. It raises the concern if the police should be more careful in using guns to avoid killing innocent people.
+
+## QUESTION 2: What is the geographic distribution of the economic status of the communities the victims come from? Are there any noticeable patterns?
+
+To gain a sense of the distribution, we will use the ***national bucket*** variable. ***National bucket*** shows a rating of 1-5, where 1 means the victim comes from a county that falls into the poorest 20% of counties within the U.S.; 2 means the poorest 20% to 40%, and so on. We plot the geographic locations of the police killing incidents, and color the points by their ***national bucket*** values:
+
+```{r, message=FALSE, warning=FALSE}
+state_borders <- map_data("state")
+ggplot(data = state_borders) +
+  geom_polygon(aes(x = long, y = lat, group = group), 
+               color = "black", fill = "white", size = 0.4) + 
+  theme_void() +
+  # coord_map("polyconic") + 
+  scale_x_continuous(limits = c(-130, -65)) +
+  scale_y_continuous(limits = c(20, 55)) +
+  geom_point(data = police, aes(x = longitude, y = latitude, color = as.integer(nat_bucket)),
+             alpha = 0.5, size = 1.5) +
+  scale_color_gradient2(name = "National Bucket", low = "darkgreen", mid = "grey", 
+                       high = "darkorchid4", midpoint = 3) +
+  labs(
+    x = "Longitude",
+    y = "Latitude",
+    title = "Geographic Location and National Income Bucket"
+  )
+
+```
+
+We can immediately tell that there are more green points than purple points. This means the majority of victims come from poorer counties. The colors of the points are distributed somewhat evenly in the middle part of the U.S. However, there seem to be roughly two clusters of purple points, where one cluster is located on the coast of California, and the other in the North East area. This should not be entirely surprising, as these two regions are wealthier in the first place.
+
+Now, because many points overlap in the two clusters, to confirm that indeed they correspond to higher economic status, we draw a contour plot where the height corresponds to ***national bucket***.
+
+```{r, message=FALSE, warning=FALSE}
+loess_model <- loess(as.integer(nat_bucket) ~ longitude * latitude, data = police,
+                     control = loess.control(surface = "direct"))
+lat_grid <- seq(20, 55, by = 1)
+lon_grid <- seq(-130, -66, by = 2)
+lonlat_grid <- expand.grid("longitude" = lon_grid, "latitude" = lat_grid, KEEP.OUT.ATTRS = FALSE)
+loess_pred <- predict(loess_model, lonlat_grid)
+loess_pred_tbl <- lonlat_grid %>%
+  # Convert to tibble:
+  as_tibble() %>%
+  # Add this column:
+  mutate(pred_nat_bucket = loess_pred)
+
+ggplot(data = state_borders) +
+    geom_polygon(aes(x = long, y = lat, group = group), 
+                 color = "black", fill = "white", size = 0.4) + 
+    scale_x_continuous(limits = c(-130, -65)) +
+    scale_y_continuous(limits = c(20, 55)) +
+    #theme_void() +
+    # coord_map("polyconic") + 
+    geom_point(data = police, aes(x = longitude, y = latitude),
+               alpha = 0.4, size = 1.5) +
+    geom_contour_filled(data = loess_pred_tbl, binwidth = 1,
+                        aes(x = longitude, y = latitude, z = loess_pred, 
+                            color = after_stat(level)),
+                        alpha = 0.2) +
+  labs(
+    x = "Longitude",
+    y = "Latitude",
+    main = "Contour Plot"
+  )
+
+```
+
+We see that indeed California and North East are clusters of wealthier clusters, since their contour colors correspond to higher ***national bucket*** levels.
+
+
+## QUESTION 3:
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+gunshot = data.frame(cause = c(length = nrow(police)), college = police$college)
+for (i in 1:nrow(police)){
+  if (police[i,"cause"] != "Gunshot") {gunshot[i, "cause"] = "not-Gunshot"} else {gunshot[i, "cause"] = "Gunshot"}
+}
+c1 = rgb(173,216,230,max = 255, alpha = 80, names = "lt.blue")
+c2 = rgb(255,192,203, max = 255, alpha = 80, names = "lt.pink")
+ggplot(gunshot, aes(x = college, ..scale.., fill = cause)) + 
+  geom_histogram(position = "identity", alpha = 0.5, aes(y = ..count../sum(..count..)))
+```
+
+Education level is another factor that can influence the likelihood of police killing. From the histogram, we found that most police killing happened in low educational level areas (below 0.2). We also want to check if education level makes a difference in the likelihood of gunshot, so more specifically, whether gunshot is more likely to happen in lower education level districts. 
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(data = police, aes(x = college)) + geom_histogram(aes(fill = raceethnicity))
+whites = subset(police, raceethnicity == "White")
+minority = subset(police, raceethnicity != "White")
+plot(ecdf(whites$college))
+plot(ecdf(minority$college))
+ks.test(whites$college, minority$college)
+
+```
+
+The ks test shows us that there is a significant difference between the education levels for white victims and the minority grouped victims who were killed by the police. The p-value is 6.047e-05 which is lower than 0.05, thus there is enough evidence to reject the null hypothesis, that the two distributions are the same.
+
+
+# Conclusion and Future Work
+
+Since many variables in the dataset are related to a broad region, our analysis of the social factors can be biased. The results would be more precise and meaningful if we could gather more specific information about the smaller neighborhood the deceased lived in since these data should be more closely related to the deceased. We could also improve our analysis through gathering more recent data across a longer period of time. Currently, we only have half year data in 2015, which might be biased and a little outdated. 
+
+
+
